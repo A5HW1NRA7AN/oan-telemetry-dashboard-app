@@ -176,7 +176,7 @@ const TtsReport = () => {
             {isLoading ? (
               <div className="h-8 w-24 bg-muted animate-pulse rounded mb-2" />
             ) : (
-              <div className="text-2xl font-bold">{stats.totalCalls.toLocaleString()}</div>
+              <div className="text-2xl font-bold">{(stats.totalCalls ?? 0).toLocaleString()}</div>
             )}
             <p className="text-xs text-muted-foreground">
               {dateRange.from || dateRange.to ? "Filtered period" : "All time"}
@@ -193,7 +193,7 @@ const TtsReport = () => {
             {isLoading ? (
               <div className="h-8 w-24 bg-muted animate-pulse rounded mb-2" />
             ) : (
-              <div className="text-2xl font-bold">{stats.avgLatency.toLocaleString()} ms</div>
+              <div className="text-2xl font-bold">{(stats.avgLatency ?? 0).toLocaleString()} ms</div>
             )}
             <p className="text-xs text-muted-foreground">Average response latency</p>
           </CardContent>
@@ -208,7 +208,7 @@ const TtsReport = () => {
             {isLoading ? (
               <div className="h-8 w-24 bg-muted animate-pulse rounded mb-2" />
             ) : (
-              <div className="text-2xl font-bold">{stats.maxLatency.toLocaleString()} ms</div>
+              <div className="text-2xl font-bold">{(stats.maxLatency ?? 0).toLocaleString()} ms</div>
             )}
             <p className="text-xs text-muted-foreground">Maximum response latency</p>
           </CardContent>
