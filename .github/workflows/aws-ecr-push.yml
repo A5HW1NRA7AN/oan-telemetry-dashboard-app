@@ -1,46 +1,51 @@
-name: CI/CD Pipeline - ECR to EC2
+name: Build and Push to AWS ECR
 
 on:
   push:
-    branches: ["main"] # Branch to monitor for pushes
-
-env:
-  SERVICE_NAME: telemetry-dashboard-app-bharat
+    branches: [main]
+  workflow_dispatch:
 
 jobs:
-  deploy:
-    name: Build, Push and Deploy
+  build-and-push:
     runs-on: ubuntu-latest
 
+    env:
+      SERVICE_NAME: telemetry-dashboard-app-bharat
+
     steps:
-      - name: Checkout Repository
+      - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Configure AWS Credentials
+      - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_REGION }}
+          aws-region: ${{ vars.AWS_REGION }}
+
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Build, Tag, and Push Image to ECR
-        id: build-image
+      - name: Build Docker image
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          ECR_REPOSITORY_NAME: ${{ secrets.ECR_REPOSITORY_NAME }}
-          IMAGE_TAG: ${{ env.SERVICE_NAME }}-latest
+          ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY_NAME }}
         run: |
-          # Build with production URLs passed as build arguments
+          # Build without Keycloak args because they are injected dynamically at runtime via docker-entrypoint.sh envsubst
           docker build \
-            --build-arg VITE_KEYCLOAK_URL=${{ secrets.VITE_PROD_KEYCLOAK_URL }} \
-            --build-arg VITE_KEYCLOAK_REALM=${{ secrets.VITE_PROD_KEYCLOAK_REALM }} \
-            --build-arg VITE_KEYCLOAK_CLIENT_ID=${{ secrets.VITE_PROD_KEYCLOAK_CLIENT_ID }} \
-            --build-arg VITE_API_SERVER_URL=${{ secrets.VITE_PROD_API_URL }} \
-            --build-arg VITE_APP_ENV=production \
-            -t $ECR_REGISTRY/$ECR_REPOSITORY_NAME:$IMAGE_TAG .
+            --tag  $ECR_REGISTRY/$ECR_REPOSITORY:${{ env.SERVICE_NAME }}-${{ github.sha }} \
+            --label service=${{ env.SERVICE_NAME }} \
+            .
 
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY_NAME:$IMAGE_TAG
-          echo "image=$ECR_REGISTRY/$ECR_REPOSITORY_NAME:$IMAGE_TAG" >> $GITHUB_OUTPUT
+          docker tag \
+            $ECR_REGISTRY/$ECR_REPOSITORY:${{ env.SERVICE_NAME }}-${{ github.sha }} \
+            $ECR_REGISTRY/$ECR_REPOSITORY:${{ env.SERVICE_NAME }}-latest
+
+      - name: Push image to Amazon ECR
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY_NAME }}
+        run: |
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:${{ env.SERVICE_NAME }}-${{ github.sha }}
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:${{ env.SERVICE_NAME }}-latest
