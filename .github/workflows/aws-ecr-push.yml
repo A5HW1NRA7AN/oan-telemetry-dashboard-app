@@ -1,0 +1,46 @@
+name: CI/CD Pipeline - ECR to EC2
+
+on:
+  push:
+    branches: ["main"] # Branch to monitor for pushes
+
+env:
+  SERVICE_NAME: telemetry-dashboard-app-bharat
+
+jobs:
+  deploy:
+    name: Build, Push and Deploy
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build, Tag, and Push Image to ECR
+        id: build-image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY_NAME: ${{ secrets.ECR_REPOSITORY_NAME }}
+          IMAGE_TAG: ${{ env.SERVICE_NAME }}-latest
+        run: |
+          # Build with production URLs passed as build arguments
+          docker build \
+            --build-arg VITE_KEYCLOAK_URL=${{ secrets.VITE_PROD_KEYCLOAK_URL }} \
+            --build-arg VITE_KEYCLOAK_REALM=${{ secrets.VITE_PROD_KEYCLOAK_REALM }} \
+            --build-arg VITE_KEYCLOAK_CLIENT_ID=${{ secrets.VITE_PROD_KEYCLOAK_CLIENT_ID }} \
+            --build-arg VITE_API_SERVER_URL=${{ secrets.VITE_PROD_API_URL }} \
+            --build-arg VITE_APP_ENV=production \
+            -t $ECR_REGISTRY/$ECR_REPOSITORY_NAME:$IMAGE_TAG .
+
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY_NAME:$IMAGE_TAG
+          echo "image=$ECR_REGISTRY/$ECR_REPOSITORY_NAME:$IMAGE_TAG" >> $GITHUB_OUTPUT
